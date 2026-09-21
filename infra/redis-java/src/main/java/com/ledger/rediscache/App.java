@@ -25,7 +25,8 @@ public class App {
 
         while (true) {
             Socket clientSocket = serverSocket.accept();
-            handleClient(clientSocket);
+            Thread clientThread = new Thread(() -> handleClient(clientSocket));
+            clientThread.start();
         }
     }
 
