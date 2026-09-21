@@ -10,7 +10,22 @@ public class App {
     private static final int PORT = 6380;
     private static final String AOF_FILE = "redis-java.aof";
 
-    private static final Map<String, String> store = new ConcurrentHashMap<>();
+    private static final int MAX_ENTRIES = 1000;
+
+    // LinkedHashMap in access-order mode gives us LRU eviction almost for free:
+    // every get() or put() moves that key to the "most recently used" end,
+    // so the eldest entry is always the least recently used one.
+    private static final Map<String, String> store = Collections.synchronizedMap(
+        new LinkedHashMap<String, String>(16, 0.75f, true) {
+            protected boolean removeEldestEntry(Map.Entry<String, String> eldest) {
+                boolean shouldEvict = size() > MAX_ENTRIES;
+                if (shouldEvict) {
+                    System.out.println("evicting key (LRU): " + eldest.getKey());
+                }
+                return shouldEvict;
+            }
+        }
+    );
     private static final Map<String, Long> expiry = new ConcurrentHashMap<>();
     private static final Map<String, Map<String, String>> hashStore = new ConcurrentHashMap<>();
 
