@@ -1,0 +1,7 @@
+claim_id,desynpuf_id,provider_id,provider_specialty,procedure_code,diagnosis_code,claim_type,billed_amount,submitted_date
+,ABC123,1234567890,11,99213,4019,Carrier,100.00,2026-03-01
+CLM_BAD_002,ABC124,1234567890,11,,4019,Carrier,100.00,2026-03-01
+CLM_BAD_003,ABC125,1234567890,11,99213,4019,Carrier,-50.00,2026-03-01
+CLM_BAD_004,ABC126,1234567890,11,99213,4019,Carrier,not_a_number,2026-03-01
+CLM_BAD_005,ABC127,1234567890,11,99213,4019,Carrier,100.00,not-a-date
+CLM_GOOD_001,ABC128,1234567890,11,99213,4019,Carrier,100.00,2026-03-01
