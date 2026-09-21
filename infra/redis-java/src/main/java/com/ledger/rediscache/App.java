@@ -10,6 +10,9 @@ public class App {
     private static final Map<String, String> store = new ConcurrentHashMap<>();
     private static final Map<String, Long> expiry = new ConcurrentHashMap<>();
 
+    // hashKey -> (field -> value)
+    private static final Map<String, Map<String, String>> hashStore = new ConcurrentHashMap<>();
+
     public static void main(String[] args) throws IOException {
         ServerSocket serverSocket = new ServerSocket(PORT);
         System.out.println("redis-java listening on port " + PORT);
@@ -111,6 +114,7 @@ public class App {
                 for (int i = 1; i < command.size(); i++) {
                     String key = command.get(i);
                     if (store.remove(key) != null) deleted++;
+                    if (hashStore.remove(key) != null) deleted++;
                     expiry.remove(key);
                 }
                 return ":" + deleted + "\r\n";
@@ -119,10 +123,58 @@ public class App {
             case "EXPIRE": {
                 if (command.size() < 3) return "-ERR wrong number of arguments for EXPIRE\r\n";
                 String key = command.get(1);
-                if (!store.containsKey(key)) return ":0\r\n";
+                if (!store.containsKey(key) && !hashStore.containsKey(key)) return ":0\r\n";
                 long seconds = Long.parseLong(command.get(2));
                 expiry.put(key, System.currentTimeMillis() + (seconds * 1000));
                 return ":1\r\n";
+            }
+
+            // HSET hashkey field value
+            case "HSET": {
+                if (command.size() < 4) return "-ERR wrong number of arguments for HSET\r\n";
+                String key = command.get(1);
+                String field = command.get(2);
+                String value = command.get(3);
+                hashStore.computeIfAbsent(key, k -> new ConcurrentHashMap<>()).put(field, value);
+                return ":1\r\n"; // real Redis returns count of NEW fields added; we simplify to always 1 for now
+            }
+
+            // HGET hashkey field
+            case "HGET": {
+                if (command.size() < 3) return "-ERR wrong number of arguments for HGET\r\n";
+                String key = command.get(1);
+                String field = command.get(2);
+                Map<String, String> h = hashStore.get(key);
+                if (h == null || !h.containsKey(field)) return "$-1\r\n";
+                String value = h.get(field);
+                return "$" + value.length() + "\r\n" + value + "\r\n";
+            }
+
+            // HGETALL hashkey -> RESP array of field, value, field, value...
+            case "HGETALL": {
+                if (command.size() < 2) return "-ERR wrong number of arguments for HGETALL\r\n";
+                String key = command.get(1);
+                Map<String, String> h = hashStore.get(key);
+                if (h == null || h.isEmpty()) return "*0\r\n";
+
+                StringBuilder sb = new StringBuilder();
+                sb.append("*").append(h.size() * 2).append("\r\n");
+                for (Map.Entry<String, String> entry : h.entrySet()) {
+                    sb.append("$").append(entry.getKey().length()).append("\r\n").append(entry.getKey()).append("\r\n");
+                    sb.append("$").append(entry.getValue().length()).append("\r\n").append(entry.getValue()).append("\r\n");
+                }
+                return sb.toString();
+            }
+
+            // HDEL hashkey field
+            case "HDEL": {
+                if (command.size() < 3) return "-ERR wrong number of arguments for HDEL\r\n";
+                String key = command.get(1);
+                String field = command.get(2);
+                Map<String, String> h = hashStore.get(key);
+                if (h == null) return ":0\r\n";
+                boolean removed = h.remove(field) != null;
+                return removed ? ":1\r\n" : ":0\r\n";
             }
 
             default:
