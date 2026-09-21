@@ -2,24 +2,68 @@ package com.ledger.rediscache;
 
 import java.io.*;
 import java.net.*;
+import java.nio.file.*;
 import java.util.*;
 import java.util.concurrent.*;
 
 public class App {
     private static final int PORT = 6380;
+    private static final String AOF_FILE = "redis-java.aof";
+
     private static final Map<String, String> store = new ConcurrentHashMap<>();
     private static final Map<String, Long> expiry = new ConcurrentHashMap<>();
-
-    // hashKey -> (field -> value)
     private static final Map<String, Map<String, String>> hashStore = new ConcurrentHashMap<>();
 
+    private static PrintWriter aofWriter;
+
     public static void main(String[] args) throws IOException {
+        loadAof();
+        openAofWriter();
+
         ServerSocket serverSocket = new ServerSocket(PORT);
         System.out.println("redis-java listening on port " + PORT);
 
         while (true) {
             Socket clientSocket = serverSocket.accept();
             handleClient(clientSocket);
+        }
+    }
+
+    // Replays the AOF file on startup, rebuilding in-memory state from the write log.
+    private static void loadAof() throws IOException {
+        Path path = Paths.get(AOF_FILE);
+        if (!Files.exists(path)) {
+            System.out.println("no AOF file found, starting with empty store");
+            return;
+        }
+
+        int replayed = 0;
+        try (BufferedReader reader = Files.newBufferedReader(path)) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                if (line.isBlank()) continue;
+                List<String> command = splitAofLine(line);
+                execute(command); // replay: re-run the command against the in-memory store
+                replayed++;
+            }
+        }
+        System.out.println("replayed " + replayed + " commands from AOF");
+    }
+
+    // AOF lines are stored as tab-separated args, e.g. "SET\tfoo\tbar"
+    private static List<String> splitAofLine(String line) {
+        return new ArrayList<>(Arrays.asList(line.split("\t")));
+    }
+
+    private static void openAofWriter() throws IOException {
+        aofWriter = new PrintWriter(new FileWriter(AOF_FILE, true)); // true = append mode
+    }
+
+    // Called after every successful mutating command to persist it.
+    private static void appendToAof(List<String> command) {
+        synchronized (aofWriter) {
+            aofWriter.println(String.join("\t", command));
+            aofWriter.flush(); // flush immediately so we don't lose writes on a crash
         }
     }
 
@@ -35,6 +79,11 @@ public class App {
                 if (command.isEmpty()) continue;
 
                 String reply = execute(command);
+
+                if (isMutatingCommand(command.get(0))) {
+                    appendToAof(command);
+                }
+
                 out.write(reply.getBytes());
                 out.flush();
             }
@@ -46,6 +95,15 @@ public class App {
             } catch (IOException e) {
                 // ignore
             }
+        }
+    }
+
+    private static boolean isMutatingCommand(String cmd) {
+        switch (cmd.toUpperCase()) {
+            case "SET": case "DEL": case "EXPIRE": case "HSET": case "HDEL":
+                return true;
+            default:
+                return false;
         }
     }
 
@@ -129,17 +187,15 @@ public class App {
                 return ":1\r\n";
             }
 
-            // HSET hashkey field value
             case "HSET": {
                 if (command.size() < 4) return "-ERR wrong number of arguments for HSET\r\n";
                 String key = command.get(1);
                 String field = command.get(2);
                 String value = command.get(3);
                 hashStore.computeIfAbsent(key, k -> new ConcurrentHashMap<>()).put(field, value);
-                return ":1\r\n"; // real Redis returns count of NEW fields added; we simplify to always 1 for now
+                return ":1\r\n";
             }
 
-            // HGET hashkey field
             case "HGET": {
                 if (command.size() < 3) return "-ERR wrong number of arguments for HGET\r\n";
                 String key = command.get(1);
@@ -150,7 +206,6 @@ public class App {
                 return "$" + value.length() + "\r\n" + value + "\r\n";
             }
 
-            // HGETALL hashkey -> RESP array of field, value, field, value...
             case "HGETALL": {
                 if (command.size() < 2) return "-ERR wrong number of arguments for HGETALL\r\n";
                 String key = command.get(1);
@@ -166,7 +221,6 @@ public class App {
                 return sb.toString();
             }
 
-            // HDEL hashkey field
             case "HDEL": {
                 if (command.size() < 3) return "-ERR wrong number of arguments for HDEL\r\n";
                 String key = command.get(1);
