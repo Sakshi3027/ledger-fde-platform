@@ -9,7 +9,11 @@ import sys
 import psycopg2
 import psycopg2.extras
 import json
+import redis
 from collections import defaultdict
+
+# Our own Redis-in-Java, not real Redis - same protocol, our implementation
+cache = redis.Redis(host="localhost", port=6380, decode_responses=True)
 
 DB_CONFIG = {
     "host": "localhost",
@@ -20,6 +24,14 @@ DB_CONFIG = {
 }
 
 def load_active_rules(cur, client_id):
+    cache_key = f"rules:{client_id}"
+
+    cached = cache.hgetall(cache_key)
+    if cached and "id" in cached:
+        print(f"cache HIT for {cache_key}")
+        return cached["id"], json.loads(cached["rule_definition"])
+
+    print(f"cache MISS for {cache_key}, loading from Postgres")
     cur.execute(
         "SELECT id, rule_definition FROM rule_versions WHERE client_id = %s AND is_active = true ORDER BY version_number DESC LIMIT 1",
         (client_id,),
@@ -27,7 +39,16 @@ def load_active_rules(cur, client_id):
     row = cur.fetchone()
     if not row:
         raise Exception(f"no active rule version found for client {client_id}")
-    return row["id"], row["rule_definition"]  # rule_version_id, rule_definition dict
+
+    rule_version_id = str(row["id"])
+    rule_definition = row["rule_definition"]
+
+    cache.hset(cache_key, mapping={
+        "id": rule_version_id,
+        "rule_definition": json.dumps(rule_definition),
+    })
+
+    return rule_version_id, rule_definition
 
 def check_overbilling(claim, rules):
     expected = rules["expected_amounts"].get(claim["procedure_code"])

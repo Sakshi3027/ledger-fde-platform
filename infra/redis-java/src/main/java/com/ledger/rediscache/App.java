@@ -204,12 +204,21 @@ public class App {
             }
 
             case "HSET": {
-                if (command.size() < 4) return "-ERR wrong number of arguments for HSET\r\n";
+                // Supports both HSET key field value, and the multi-field form
+                // HSET key field1 val1 field2 val2 ... (field/value pairs must be even in count)
+                if (command.size() < 4 || (command.size() - 2) % 2 != 0) {
+                    return "-ERR wrong number of arguments for HSET\r\n";
+                }
                 String key = command.get(1);
-                String field = command.get(2);
-                String value = command.get(3);
-                hashStore.computeIfAbsent(key, k -> new ConcurrentHashMap<>()).put(field, value);
-                return ":1\r\n";
+                Map<String, String> h = hashStore.computeIfAbsent(key, k -> new ConcurrentHashMap<>());
+                int fieldsSet = 0;
+                for (int i = 2; i < command.size(); i += 2) {
+                    String field = command.get(i);
+                    String value = command.get(i + 1);
+                    h.put(field, value);
+                    fieldsSet++;
+                }
+                return ":" + fieldsSet + "\r\n";
             }
 
             case "HGET": {
