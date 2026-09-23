@@ -44,6 +44,18 @@ Dashboard (Streamlit) + ROI summary
 - **PostgreSQL** — durable storage for clients, versioned rules, claims, audit log, quarantined records
 - **Docker Compose** — isolated local infra
 
+## Agent layer: judgment for the cases rules can't cleanly resolve
+
+Not every claim is a clean pass or fail. Claims between 1.5x and 3x their expected amount fall in a gray zone the deterministic rules engine can't confidently resolve on its own. Instead of silently auto-clearing them, these get routed to an LLM agent for judgment.
+
+Built by adapting the tracer, LLM-as-judge evaluator, and drift detector from [AgentTrace](https://github.com/Sakshi3027/agenttrace), a separate observability project, into Ledger's own agent layer:
+
+- Every agent call is traced (input, output, latency) and scored for quality automatically, no human labeling needed
+- Every decision is logged to the same `audit_log` as every other decision, with the agent's specific reasoning attached
+- Drift detection watches for quality degradation over time, verified with a real test: a deliberately bad agent output was fed through the same pipeline, and both the low-quality alert and the drift alert fired correctly, citing the exact claim, the exact score drop, and the exact historical average it dropped from
+
+See [`agent-layer/`](agent-layer/) for the review agent and adapted tracer module.
+
 ## Onboarding a new client
 
 ```bash
