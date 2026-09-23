@@ -26,12 +26,24 @@ DB_CONFIG = {
 def load_active_rules(cur, client_id):
     cache_key = f"rules:{client_id}"
 
-    cached = cache.hgetall(cache_key)
+    # Cache reads are best-effort: if Redis-in-Java is unreachable,
+    # fall straight through to Postgres rather than failing the whole
+    # onboarding run. This is the actual graceful-degradation behavior
+    # the runbook promises, verified by a real chaos test (killing the
+    # cache server mid-run and confirming the rules engine still works).
+    cached = None
+    try:
+        cached = cache.hgetall(cache_key)
+    except redis.exceptions.ConnectionError:
+        print(f"WARNING: cache unavailable, falling back to Postgres for {cache_key}")
+
     if cached and "id" in cached:
         print(f"cache HIT for {cache_key}")
         return cached["id"], json.loads(cached["rule_definition"])
 
-    print(f"cache MISS for {cache_key}, loading from Postgres")
+    if cached is not None:
+        print(f"cache MISS for {cache_key}, loading from Postgres")
+
     cur.execute(
         "SELECT id, rule_definition FROM rule_versions WHERE client_id = %s AND is_active = true ORDER BY version_number DESC LIMIT 1",
         (client_id,),
@@ -43,10 +55,13 @@ def load_active_rules(cur, client_id):
     rule_version_id = str(row["id"])
     rule_definition = row["rule_definition"]
 
-    cache.hset(cache_key, mapping={
-        "id": rule_version_id,
-        "rule_definition": json.dumps(rule_definition),
-    })
+    try:
+        cache.hset(cache_key, mapping={
+            "id": rule_version_id,
+            "rule_definition": json.dumps(rule_definition),
+        })
+    except redis.exceptions.ConnectionError:
+        print("WARNING: could not write to cache, continuing without it")
 
     return rule_version_id, rule_definition
 
