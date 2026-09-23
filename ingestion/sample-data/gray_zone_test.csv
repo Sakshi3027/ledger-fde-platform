@@ -1,0 +1,4 @@
+claim_id,desynpuf_id,provider_id,provider_specialty,procedure_code,diagnosis_code,claim_type,billed_amount,submitted_date
+CLM_GRAY_001,TESTPATIENT0001A,1234567890,11,99213,4019,Carrier,190.00,2026-03-15
+CLM_GRAY_002,TESTPATIENT0002B,1234567890,11,99214,25000,Carrier,300.00,2026-03-15
+CLM_GRAY_003,TESTPATIENT0003C,1234567890,11,71020,4280,Outpatient,140.00,2026-03-15

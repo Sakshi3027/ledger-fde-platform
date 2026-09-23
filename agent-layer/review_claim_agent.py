@@ -53,7 +53,7 @@ def call_review_agent(claim, expected_amount):
         "model": GROQ_MODEL,
         "messages": [{"role": "user", "content": prompt}],
         "temperature": 0.0,
-        "max_tokens": 200,
+        "max_tokens": 400,
     }
 
     try:

@@ -6,11 +6,15 @@ human-readable explanation, and updates claim status.
 """
 
 import sys
+import os
 import psycopg2
 import psycopg2.extras
 import json
 import redis
 from collections import defaultdict
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "agent-layer"))
+from review_claim_agent import review_claim
 
 # Our own Redis-in-Java, not real Redis - same protocol, our implementation
 cache = redis.Redis(host="localhost", port=6380, decode_responses=True)
@@ -65,13 +69,26 @@ def load_active_rules(cur, client_id):
 
     return rule_version_id, rule_definition
 
+GRAY_ZONE_MULTIPLIER = 1.5  # below this, clean. above overbilling_multiplier, hard flag. between: agent judgment.
+
 def check_overbilling(claim, rules):
     expected = rules["expected_amounts"].get(claim["procedure_code"])
     if expected is None:
         return None
-    threshold = expected * rules["overbilling_multiplier"]
-    if float(claim["billed_amount"]) > threshold:
-        return f"billed ${claim['billed_amount']} exceeds {rules['overbilling_multiplier']}x expected (${expected}) for procedure {claim['procedure_code']}"
+    hard_threshold = expected * rules["overbilling_multiplier"]
+    gray_threshold = expected * GRAY_ZONE_MULTIPLIER
+    billed = float(claim["billed_amount"])
+
+    if billed > hard_threshold:
+        return ("rule", f"billed ${billed} exceeds {rules['overbilling_multiplier']}x expected (${expected}) for procedure {claim['procedure_code']}")
+
+    if billed > gray_threshold:
+        agent_result = review_claim(claim, expected)
+        explanation = f"[agent judgment: {agent_result['decision']}] {agent_result['reasoning']} (eval score: {agent_result['eval_score']})"
+        if agent_result["decision"] in ("DENY", "ESCALATE"):
+            return ("agent", explanation)
+        return None  # agent approved it
+
     return None
 
 def check_implausible_pairing(claim, rules):
@@ -116,9 +133,11 @@ def run(client_id):
     for claim in claims:
         reasons = []
 
-        overbilling_reason = check_overbilling(claim, rules)
-        if overbilling_reason:
-            reasons.append(("overbilling", overbilling_reason))
+        overbilling_result = check_overbilling(claim, rules)
+        if overbilling_result:
+            source, overbilling_reason = overbilling_result
+            rule_tag = "overbilling" if source == "rule" else "overbilling_agent_reviewed"
+            reasons.append((rule_tag, overbilling_reason))
 
         pairing_reason = check_implausible_pairing(claim, rules)
         if pairing_reason:
