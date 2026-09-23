@@ -12,11 +12,20 @@ from tracer.trace_db import save_eval, get_steps_for_run
 import os
 
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
-GROQ_MODEL = "llama-3.3-70b-versatile"
+GROQ_MODEL = "openai/gpt-oss-120b"
 GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
 
 # ─── EVAL CRITERIA PER STEP ───────────────────────────────────────────────────
 EVAL_PROMPTS = {
+    "review_claim": """You are evaluating the quality of an insurance claim review decision.
+Score the output from 0.0 to 1.0 based on:
+- Does it give a clear decision (approve/deny/escalate)? (0.3)
+- Does the reasoning reference specific claim details (amount, procedure, diagnosis)? (0.3)
+- Is the reasoning internally consistent with the decision made? (0.2)
+- Is it concise and free of hedging or vague language? (0.2)
+
+Output ONLY valid JSON: {{"score": 0.0-1.0, "reasoning": "one sentence explanation"}}""",
+
     "research_company": """You are evaluating the quality of a company research summary.
 Score the output from 0.0 to 1.0 based on:
 - Does it mention what the company does? (0.25)
@@ -68,7 +77,7 @@ def call_groq_eval(system_prompt: str, output_to_eval: str) -> dict:
             {"role": "user", "content": f"Evaluate this output:\n\n{output_to_eval}"},
         ],
         "temperature": 0.0,
-        "max_tokens": 200,
+        "max_tokens": 500,
     }
 
     try:
