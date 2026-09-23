@@ -1,36 +1,76 @@
 # Ledger — Financial Data Operations Deployment Platform
 
-> A platform that stands up automated claims, reconciliation, and compliance workflows for financial services clients — and monitors the agents it deploys so degradation gets caught before the client notices.
+> A platform that stands up automated claims, reconciliation, and compliance workflows for financial services clients, with a custom-built Redis clone as its infrastructure layer.
 
-## The Problem
+## What this is
 
-Financial services teams need automated data workflows (claims adjudication, reconciliation, compliance checks) but every client's data is shaped differently, every engagement has its own rules, and once an AI agent is deployed, nobody's watching whether its judgment quietly degrades over time.
+Ledger simulates the core of forward-deployed engineering work: taking a client's raw, often messy data, standing up a working automated pipeline fast, and proving it stays trustworthy over time. It handles two distinct client workflows on one shared platform pattern, and includes an infrastructure component (a Redis server clone, built from scratch in Java) that the platform actually depends on in production, not as a side demo.
 
-Ledger is built to solve both halves: fast, repeatable client onboarding, and an observability layer that catches drift after deployment — not the demo, the three-weeks-later problem.
+## What's actually built and verified
 
-## Status
+**Three onboarded clients, all with real data flowing through them:**
+- **Client A — Claims Adjudication.** CMS DE-SynPUF-grounded synthetic claims data. Ingestion with a proven data quality gate (verified catching 5 distinct failure modes). Rules engine applying overbilling, duplicate billing, and implausible diagnosis/procedure pairing checks, with every decision logged and explained in plain language.
+- **Client B — Reconciliation.** Two intentionally mismatched data feeds (different column names, different date formats, missing fields) reconciled into clean matches, amount breaks, and missing-transaction breaks. See [`docs/case-studies/client-b-onboarding.md`](docs/case-studies/client-b-onboarding.md) for the real onboarding writeup.
+- **Client C — Claims.** Onboarded through the CLI in 1.0 second, proving the onboarding pattern generalizes rather than being a one-off.
 
-🚧 In active development. Build log and phase progress below.
+**Platform-wide results** (live, real numbers — regenerate anytime with `dashboard/generate_roi_summary.py`):
+- 248 records auto-adjudicated, 95.8% auto-adjudication rate
+- 11 records flagged for human review, each with a specific, readable reason
+- 5 malformed records caught and quarantined before ever reaching business logic
+- 14 reconciliation breaks identified with exact dollar differences
 
 ## Architecture
+```
+Client data source (CSV)
+|
+v
+Ingestion Adapter (per client type)
+|
+v
+Data Quality Gate (validates, quarantines bad records with a reason)
+|
+v
+Rules Engine (versioned, configurable per client) <---> Redis-in-Java cache
+| (rule lookups, graceful
+v fallback to Postgres
+Audit Trail (append-only, every decision explained) if unavailable)
+|
+v
+Dashboard (Streamlit) + ROI summary
+```
 
-(diagram coming in Phase 0)
+**Infra:**
+- **Redis-in-Java** — custom RESP-protocol server built from scratch: 9 commands across string and hash types, AOF persistence (verified surviving a full restart), thread-per-connection concurrency (verified with simultaneous clients), LRU eviction, benchmarked against real Redis. See [`infra/redis-java/README.md`](infra/redis-java/README.md).
+- **PostgreSQL** — durable storage for clients, versioned rules, claims, audit log, quarantined records
+- **Docker Compose** — isolated local infra
 
-## Phases
+## Onboarding a new client
 
-- [ ] Phase 0 — Scaffolding
-- [ ] Phase 1 — Redis-in-Java (standalone cache engine)
-- [ ] Phase 2 — Platform core + Client A (claims adjudication)
-- [ ] Phase 3 — Agent layer + AgentTrace integration
-- [ ] Phase 4 — Onboarding CLI + Client B (reconciliation)
-- [ ] Phase 5 — Redis-in-Java wired in as production infra
-- [ ] Phase 6 — ROI dashboard + rule versioning
-- [ ] Phase 7 — Self-service config + client handoff runbook
-- [ ] Phase 8 — Client C + full case study
+```bash
+cd onboarding
+python3 onboard.py <path_to_csv> --client-name "Client Name" --type claims
+```
 
-## Tech Stack
+Creates the client, seeds a default rule set, ingests the data, runs adjudication, and reports elapsed time. One command instead of a bespoke script per client.
 
-FastAPI · PostgreSQL · Redis (custom Java implementation) · LangGraph · Docker · Next.js/Streamlit
+## Running the dashboard
+
+```bash
+cd dashboard
+streamlit run app.py
+```
+
+## Operating this platform without the original engineer
+
+See [`docs/runbooks/client-operations-runbook.md`](docs/runbooks/client-operations-runbook.md) — written for a client's own team to run and troubleshoot the system independently.
+
+## Resilience
+
+The rules engine's cache layer degrades gracefully: if Redis-in-Java is unavailable, it falls back to Postgres automatically with a visible warning, rather than failing. This was proven with an actual chaos test (killing the cache server mid-run), not assumed from the code.
+
+## Tech stack
+
+Python, PostgreSQL, Java (custom Redis implementation), Streamlit, Docker
 
 ## Author
 
