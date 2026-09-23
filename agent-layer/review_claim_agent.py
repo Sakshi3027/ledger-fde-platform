@@ -12,8 +12,11 @@ import httpx
 import json
 
 sys.path.insert(0, os.path.dirname(__file__))
+import uuid
+from datetime import datetime, timezone
 from tracer.tracer import RunTracer, StepTracer
 from tracer.evaluator import call_groq_eval, EVAL_PROMPTS
+from tracer.trace_db import save_eval
 
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
 GROQ_MODEL = "openai/gpt-oss-120b"
@@ -79,6 +82,16 @@ def review_claim(claim, expected_amount):
 
         eval_prompt = EVAL_PROMPTS["review_claim"]
         eval_result = call_groq_eval(eval_prompt, json.dumps(result))
+
+        save_eval(
+            eval_id=str(uuid.uuid4()),
+            step_id=step.step_id,
+            run_id=run.run_id,
+            step_name="review_claim",
+            score=eval_result["score"],
+            reasoning=eval_result["reasoning"],
+            evaluated_at=datetime.now(timezone.utc).isoformat(),
+        )
 
     return {
         "decision": result.get("decision", "ESCALATE"),

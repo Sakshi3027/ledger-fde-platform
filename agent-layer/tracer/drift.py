@@ -11,10 +11,7 @@ ALERT_THRESHOLD = 0.70
 DRIFT_THRESHOLD = 0.15
 
 STEP_NAMES = [
-    "research_subject_id",
-    "find_recent_news",
-    "identify_decision_makers",
-    "write_outreach_summary",
+    "review_claim",
 ]
 
 
