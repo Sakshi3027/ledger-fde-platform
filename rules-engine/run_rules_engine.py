@@ -19,13 +19,20 @@ from review_claim_agent import review_claim
 # Our own Redis-in-Java, not real Redis - same protocol, our implementation
 cache = redis.Redis(host="localhost", port=6380, decode_responses=True)
 
-DB_CONFIG = {
-    "host": "localhost",
-    "port": 5432,
-    "dbname": "ledger",
-    "user": "ledger",
-    "password": "ledger_dev_pw",
-}
+import os as _os
+
+DATABASE_URL = _os.getenv("DATABASE_URL")
+
+if DATABASE_URL:
+    DB_CONFIG = {"dsn": DATABASE_URL}
+else:
+    DB_CONFIG = {
+        "host": "localhost",
+        "port": 5432,
+        "dbname": "ledger",
+        "user": "ledger",
+        "password": "ledger_dev_pw",
+    }
 
 def load_active_rules(cur, client_id):
     cache_key = f"rules:{client_id}"

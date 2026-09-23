@@ -9,13 +9,20 @@ import psycopg2
 import psycopg2.extras
 import pandas as pd
 
-DB_CONFIG = {
-    "host": "localhost",
-    "port": 5432,
-    "dbname": "ledger",
-    "user": "ledger",
-    "password": "ledger_dev_pw",
-}
+import os as _os
+
+DATABASE_URL = _os.getenv("DATABASE_URL")
+
+if DATABASE_URL:
+    DB_CONFIG = {"dsn": DATABASE_URL}
+else:
+    DB_CONFIG = {
+        "host": "localhost",
+        "port": 5432,
+        "dbname": "ledger",
+        "user": "ledger",
+        "password": "ledger_dev_pw",
+    }
 
 def get_conn():
     return psycopg2.connect(**DB_CONFIG, cursor_factory=psycopg2.extras.RealDictCursor)

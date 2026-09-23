@@ -11,13 +11,20 @@ import sys
 import time
 import psycopg2
 
-DB_CONFIG = {
-    "host": "localhost",
-    "port": 5432,
-    "dbname": "ledger",
-    "user": "ledger",
-    "password": "ledger_dev_pw",
-}
+import os as _os
+
+DATABASE_URL = _os.getenv("DATABASE_URL")
+
+if DATABASE_URL:
+    DB_CONFIG = {"dsn": DATABASE_URL}
+else:
+    DB_CONFIG = {
+        "host": "localhost",
+        "port": 5432,
+        "dbname": "ledger",
+        "user": "ledger",
+        "password": "ledger_dev_pw",
+    }
 
 def get_or_create_client(name, client_type, existing_id=None):
     conn = psycopg2.connect(**DB_CONFIG)
