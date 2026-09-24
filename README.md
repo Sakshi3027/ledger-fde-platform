@@ -4,6 +4,8 @@
 
 > A platform that stands up automated claims, reconciliation, and compliance workflows for financial services clients, with a custom-built Redis clone as its infrastructure layer.
 
+![Ledger Platform dashboard showing real metrics: 197 auto-adjudicated claims, 7 flagged for review, 14 reconciliation breaks, and a 96.6% auto-adjudication rate](docs/images/dashboard-screenshot.png)
+
 ## What this is
 
 Ledger simulates the core of forward-deployed engineering work: taking a client's raw, often messy data, standing up a working automated pipeline fast, and proving it stays trustworthy over time. It handles two distinct client workflows on one shared platform pattern, and includes an infrastructure component (a Redis server clone, built from scratch in Java) that the platform actually depends on in production, not as a side demo.
