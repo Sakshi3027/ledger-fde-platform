@@ -1,5 +1,7 @@
 # Ledger — Financial Data Operations Deployment Platform
 
+**Live dashboard: [ledger-fde-platform.streamlit.app](https://ledger-fde-platform.streamlit.app)**
+
 > A platform that stands up automated claims, reconciliation, and compliance workflows for financial services clients, with a custom-built Redis clone as its infrastructure layer.
 
 ## What this is
