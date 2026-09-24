@@ -4,6 +4,7 @@
 ![Java](https://img.shields.io/badge/java-17-orange)
 ![PostgreSQL](https://img.shields.io/badge/postgresql-16-336791)
 ![Streamlit](https://img.shields.io/badge/streamlit-live-ff4b4b)
+![Redis](https://img.shields.io/badge/redis-custom%20implementation-dc382d)
 ![License](https://img.shields.io/badge/license-MIT-lightgrey)
 
 **Live dashboard: [ledger-fde-platform.streamlit.app](https://ledger-fde-platform.streamlit.app)**
