@@ -1,5 +1,11 @@
 # Ledger — Financial Data Operations Deployment Platform
 
+![Python](https://img.shields.io/badge/python-3.12-blue)
+![Java](https://img.shields.io/badge/java-17-orange)
+![PostgreSQL](https://img.shields.io/badge/postgresql-16-336791)
+![Streamlit](https://img.shields.io/badge/streamlit-live-ff4b4b)
+![License](https://img.shields.io/badge/license-MIT-lightgrey)
+
 **Live dashboard: [ledger-fde-platform.streamlit.app](https://ledger-fde-platform.streamlit.app)**
 
 > A platform that stands up automated claims, reconciliation, and compliance workflows for financial services clients, with a custom-built Redis clone as its infrastructure layer.
